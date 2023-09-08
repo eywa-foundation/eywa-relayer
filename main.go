@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"log"
 	"net/http"
 	"sync"
@@ -13,7 +11,7 @@ import (
 )
 
 type Message struct {
-	Join    `mapstructure:",squash"`
+	Join    `mapstructure:",squash" json:",inline"`
 	Content string `json:"content"`
 }
 
@@ -35,7 +33,7 @@ func getRoomName(user1, user2 string) socket.Room {
 
 func handleRoomMessages(roomName socket.Room, ch chan Message, server *socket.Server) {
 	for msg := range ch {
-		server.Of(fmt.Sprintf("/%s", roomName), nil).Emit("chat", msg)
+		server.Of(roomName, nil).Emit("chat", msg)
 	}
 }
 
@@ -53,7 +51,8 @@ func main() {
 		client.On("join", func(datas ...any) {
 			join := Join{}
 			mapstructure.Decode(datas[0], &join)
-			client.Join(getRoomName(join.From, join.To))
+			room := getRoomName(join.From, join.To)
+			client.Join(room)
 		})
 		client.On("chat", func(datas ...any) {
 			msg := Message{}
