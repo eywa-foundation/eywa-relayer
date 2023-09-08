@@ -1,15 +1,19 @@
 package main
 
 import (
+	"fmt"
+
 	"log"
 	"net/http"
 	"sync"
 
-	socketio "github.com/googollee/go-socket.io"
+	"github.com/mitchellh/mapstructure"
+	"github.com/zishang520/engine.io/types"
+	"github.com/zishang520/socket.io/socket"
 )
 
 type Message struct {
-	Join
+	Join    `mapstructure:",squash"`
 	Content string `json:"content"`
 }
 
@@ -18,57 +22,62 @@ type Join struct {
 	To   string `json:"to"`
 }
 
-var roomChannels = make(map[string]chan Message)
+var roomChannels = make(map[socket.Room]chan Message)
 var roomMutex = &sync.Mutex{}
 
-func getRoomName(user1, user2 string) string {
+func getRoomName(user1, user2 string) socket.Room {
 	// Sort names to ensure uniqueness
 	if user1 < user2 {
-		return user1 + ":" + user2
+		return socket.Room(user1 + ":" + user2)
 	}
-	return user2 + ":" + user1
+	return socket.Room(user2 + ":" + user1)
 }
 
-func handleRoomMessages(roomName string, ch chan Message, server *socketio.Server) {
+func handleRoomMessages(roomName socket.Room, ch chan Message, server *socket.Server) {
 	for msg := range ch {
-		server.BroadcastToRoom("/", roomName, "chat", msg)
+		server.Of(fmt.Sprintf("/%s", roomName), nil).Emit("chat", msg)
 	}
 }
 
 func main() {
-	server := socketio.NewServer(nil)
+	c := socket.DefaultServerOptions()
+	c.SetCors(&types.Cors{
+		Origin:      true,
+		Credentials: true,
+	})
+	io := socket.NewServer(nil, c)
+	io.On("connection", func(clients ...any) {
+		client := clients[0].(*socket.Socket)
+		log.Printf("Connected: %s", client.Id())
 
-	server.OnConnect("/", func(so socketio.Conn) error {
-		so.SetContext("")
-		log.Printf("Connected: %s", so.ID())
-		return nil
+		client.On("join", func(datas ...any) {
+			join := Join{}
+			mapstructure.Decode(datas[0], &join)
+			client.Join(getRoomName(join.From, join.To))
+		})
+		client.On("chat", func(datas ...any) {
+			msg := Message{}
+			mapstructure.Decode(datas[0], &msg)
+			roomName := getRoomName(msg.From, msg.To)
+			roomMutex.Lock()
+			roomCh, ok := roomChannels[roomName]
+			if !ok {
+				roomCh = make(chan Message)
+				roomChannels[roomName] = roomCh
+				go handleRoomMessages(roomName, roomCh, io)
+			}
+			roomMutex.Unlock()
+			roomCh <- msg
+		})
+		client.On("disconnect", func(...any) {
+			log.Printf("Disconnected: %s", client.Id())
+		})
 	})
 
-	server.OnEvent("/", "join", func(so socketio.Conn, join Join) {
-		so.Join(getRoomName(join.From, join.To))
-	})
+	defer io.Close(nil)
 
-	server.OnEvent("/", "chat", func(so socketio.Conn, msg Message) {
-		roomName := getRoomName(msg.From, msg.To)
-		roomMutex.Lock()
-		roomCh, ok := roomChannels[roomName]
-		if !ok {
-			roomCh = make(chan Message)
-			roomChannels[roomName] = roomCh
-			go handleRoomMessages(roomName, roomCh, server)
-		}
-		roomMutex.Unlock()
-		roomCh <- msg
-	})
+	http.Handle("/socket.io/", io.ServeHandler(nil))
 
-	server.OnDisconnect("/", func(so socketio.Conn, reason string) {
-		log.Printf("Disconnected: %s", so.ID())
-	})
-
-	go server.Serve()
-	defer server.Close()
-
-	http.Handle("/socket.io/", server)
 	log.Println("Serving at :3000...")
 	log.Fatal(http.ListenAndServe(":3000", nil))
 }
