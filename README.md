@@ -4,7 +4,7 @@ This is a relayer for Eywa. It is a standalone application that listens to Eywa-
 
 ### Using Docker
 
-You must set docker environment variables before running eywa-relayer. Which is `ACCOUNT_NAME` and `NODE_ADDRESS`. recommended values are `neytiri` and `http://localhost:26657` respectively.
+You must set docker environment variables before running eywa-relayer. Which is `ACCOUNT_NAME` and `NODE_ADDRESS`. recommended values are `alice` and `http://node.celestia.eywa.jaehong21.com:26657` respectively.
 
 ```bash
 docker pull jaehong21/eywa-relayer:latest
