@@ -3,8 +3,13 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 
+	"github.com/cosmos/btcutil/bech32"
+	"github.com/eywa-foundation/eywaclient"
+	"github.com/joho/godotenv"
 	"github.com/mitchellh/mapstructure"
 	"github.com/zishang520/engine.io/types"
 	"github.com/zishang520/socket.io/socket"
@@ -31,6 +36,14 @@ func getRoomName(user1, user2 string) socket.Room {
 	return socket.Room(user2 + ":" + user1)
 }
 
+func isCosmosAddress(address string) bool {
+	if !strings.HasPrefix(address, "cosmos") {
+		return false
+	}
+	_, _, err := bech32.Decode(address, 128)
+	return err == nil
+}
+
 func handleRoomMessages(roomName socket.Room, ch chan Message, server *socket.Server) {
 	for msg := range ch {
 		server.Of(roomName, nil).Emit("chat", msg)
@@ -38,12 +51,18 @@ func handleRoomMessages(roomName socket.Room, ch chan Message, server *socket.Se
 }
 
 func main() {
+	godotenv.Load()
+	accountName := os.Getenv("ACCOUNT_NAME")
+	nodeAddress := os.Getenv("NODE_ADDRESS")
+	log.Println("ACCOUNT_NAME:", accountName)
+
 	c := socket.DefaultServerOptions()
 	c.SetCors(&types.Cors{
 		Origin:      true,
 		Credentials: true,
 	})
 	io := socket.NewServer(nil, c)
+
 	io.On("connection", func(clients ...any) {
 		client := clients[0].(*socket.Socket)
 		log.Printf("Connected: %s", client.Id())
@@ -51,12 +70,21 @@ func main() {
 		client.On("join", func(datas ...any) {
 			join := Join{}
 			mapstructure.Decode(datas[0], &join)
+			// Only allow join if both addresses are valid
+			if !isCosmosAddress(join.From) || !isCosmosAddress(join.To) {
+				return
+			}
 			room := getRoomName(join.From, join.To)
 			client.Join(room)
 		})
+
 		client.On("chat", func(datas ...any) {
 			msg := Message{}
 			mapstructure.Decode(datas[0], &msg)
+			if !isCosmosAddress(msg.From) || !isCosmosAddress(msg.To) {
+				return
+			}
+
 			roomName := getRoomName(msg.From, msg.To)
 			roomMutex.Lock()
 			roomCh, ok := roomChannels[roomName]
@@ -67,7 +95,23 @@ func main() {
 			}
 			roomMutex.Unlock()
 			roomCh <- msg
+
+			// Broadcast Tx in goroutines
+			go func() {
+				err := eywaclient.CreateChatTx(
+					nodeAddress,
+					accountName,
+					string(getRoomName(msg.From, msg.To)),
+					// NOTE: msg.From must be known address in chain
+					msg.From,
+					msg.To,
+					msg.Content)
+				if err != nil {
+					log.Println("Msg send Tx failed:", err)
+				}
+			}()
 		})
+
 		client.On("disconnect", func(...any) {
 			log.Printf("Disconnected: %s", client.Id())
 		})
