@@ -31,9 +31,9 @@ var roomMutex = &sync.Mutex{}
 func getRoomName(user1, user2 string) socket.Room {
 	// Sort names to ensure uniqueness
 	if user1 < user2 {
-		return socket.Room(user1 + ":" + user2)
+		return socket.Room(user1 + "_" + user2)
 	}
-	return socket.Room(user2 + ":" + user1)
+	return socket.Room(user2 + "_" + user1)
 }
 
 func isCosmosAddress(address string) bool {
