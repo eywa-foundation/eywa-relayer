@@ -76,6 +76,9 @@ func main() {
 	defer io.Close(nil)
 
 	http.Handle("/socket.io/", io.ServeHandler(nil))
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
 
 	log.Println("Serving at :3000...")
 	log.Fatal(http.ListenAndServe(":3000", nil))
