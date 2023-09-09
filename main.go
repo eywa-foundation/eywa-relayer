@@ -50,11 +50,21 @@ func handleRoomMessages(roomName socket.Room, ch chan Message, server *socket.Se
 	}
 }
 
-func main() {
+func getEnv() (string, string) {
 	godotenv.Load()
 	accountName := os.Getenv("ACCOUNT_NAME")
 	nodeAddress := os.Getenv("NODE_ADDRESS")
+	if accountName == "" || nodeAddress == "" {
+		log.Fatal("ACCOUNT_NAME or NODE_ADDRESS is not set")
+	}
 	log.Println("ACCOUNT_NAME:", accountName)
+	log.Println("NODE_ADDRESS:", nodeAddress)
+
+	return accountName, nodeAddress
+}
+
+func main() {
+	accountName, nodeAddress := getEnv()
 
 	c := socket.DefaultServerOptions()
 	c.SetCors(&types.Cors{
