@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/cosmos/btcutil v1.0.5
-	github.com/eywa-foundation/eywaclient v0.0.0-20230909171927-ad2ac6596186
 	github.com/joho/godotenv v1.5.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/zishang520/engine.io v1.5.6
@@ -49,6 +48,7 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
+	github.com/eywa-foundation/eywaclient v0.0.0-20230910011735-62b1307d538c // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect

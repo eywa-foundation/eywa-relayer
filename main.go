@@ -50,21 +50,22 @@ func handleRoomMessages(roomName socket.Room, ch chan Message, server *socket.Se
 	}
 }
 
-func getEnv() (string, string) {
+func getEnv() (string, string, string) {
 	godotenv.Load()
 	accountName := os.Getenv("ACCOUNT_NAME")
 	nodeAddress := os.Getenv("NODE_ADDRESS")
-	if accountName == "" || nodeAddress == "" {
+	mnemonic := os.Getenv("MNEMONIC")
+	if accountName == "" || nodeAddress == "" || mnemonic == "" {
 		log.Fatal("ACCOUNT_NAME or NODE_ADDRESS is not set")
 	}
 	log.Println("ACCOUNT_NAME:", accountName)
 	log.Println("NODE_ADDRESS:", nodeAddress)
-
-	return accountName, nodeAddress
+	log.Println("MNEMONIC:", mnemonic)
+	return accountName, mnemonic, nodeAddress
 }
 
 func main() {
-	accountName, nodeAddress := getEnv()
+	accountName, mnemonic, nodeAddress := getEnv()
 
 	c := socket.DefaultServerOptions()
 	c.SetCors(&types.Cors{
@@ -107,19 +108,18 @@ func main() {
 			roomCh <- msg
 
 			// Broadcast Tx in goroutines
-			go func() {
-				err := eywaclient.CreateChatTx(
-					nodeAddress,
-					accountName,
-					string(getRoomName(msg.From, msg.To)),
-					// NOTE: msg.From must be known address in chain
-					msg.From,
-					msg.To,
-					msg.Content)
-				if err != nil {
-					log.Println("Msg send Tx failed:", err)
-				}
-			}()
+			// WARNING: This is not safe, but it's just a demo
+			// and must set mnemonic properly that is knwon to ignite chain
+			go eywaclient.CreateChatTx(
+				nodeAddress,
+				accountName,
+				mnemonic,
+				string(getRoomName(msg.From, msg.To)),
+				// NOTE: msg.From must be known address in chain
+				msg.From,
+				msg.To,
+				msg.Content)
+
 		})
 
 		client.On("disconnect", func(...any) {
